@@ -1,0 +1,34 @@
+[
+    {
+        "name":  "description",
+        "value":  "{{form.description}}"
+    },
+    {
+        "name":  "displayName",
+        "value":  "{{form.displayName}}"
+    },
+    {
+        "name":  "groupId",
+        "value":  "{{form.gridGroups.id}}"
+    },
+    {
+        "name":  "groupTypes",
+        "value":  null
+    },
+    {
+        "name":  "mailEnabled",
+        "value":  null
+    },
+    {
+        "name":  "mailNickName",
+        "value":  null
+    },
+    {
+        "name":  "securityEnabled",
+        "value":  null
+    },
+    {
+        "name":  "visibility",
+        "value":  null
+    }
+]
