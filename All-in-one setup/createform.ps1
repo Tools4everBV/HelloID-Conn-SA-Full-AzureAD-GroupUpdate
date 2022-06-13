@@ -6,8 +6,8 @@
 $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
-$delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
-$delegatedFormCategories = @("Azure Active Directory","User Management") #Only unique names are supported. Categories will be created if not exists
+$delegatedFormAccessGroupNames = @("") #Only unique names are supported. Groups must exist!
+$delegatedFormCategories = @("Azure Active Directory","Group Management") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
 $script:duplicateFormSuffix = "_tmp" #the suffix will be added to all HelloID resource names to generate a duplicate form with different resource names
@@ -21,23 +21,25 @@ $tmpName = @'
 AADAppId
 '@ 
 $tmpValue = @'
-83ac862d-fe99-4bdc-8d2e-87405fdb2379
+430009f2-92ac-4efdsa-a877-57e2d5ad01a0jd73
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
-#Global variable #2 >> AADAppSecret
-$tmpName = @'
-AADAppSecret
-'@ 
-$tmpValue = "" 
-$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "True"});
-
-#Global variable #3 >> AADtenantID
+#Global variable #2 >> AADtenantID
 $tmpName = @'
 AADtenantID
 '@ 
 $tmpValue = @'
-65fc161b-0c41-4cde-9908-dabf3cad26b6
+fdasdf4-5b86-4336-aaae-00550f991cfasddf
+'@ 
+$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
+
+#Global variable #3 >> AADAppSecret
+$tmpName = @'
+AADAppSecret
+'@ 
+$tmpValue = @'
+hRL8Q~Q1bsHzQVaKwulNq5fIh~RGvM.xmgxPZcCs
 '@ 
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
@@ -104,7 +106,7 @@ function Invoke-HelloIDGlobalVariable {
                 secret   = $Secret;
                 ItemType = 0;
             }    
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl + "api/v1/automation/variable")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -150,7 +152,7 @@ function Invoke-HelloIDAutomationTask {
                 objectGuid          = $ObjectGuid;
                 variables           = (ConvertFrom-Json-WithEmptyArray($Variables));
             }
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl +"api/v1/automationtasks/powershell")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -205,7 +207,7 @@ function Invoke-HelloIDDatasource {
                 script             = $DatasourcePsScript;
                 input              = (ConvertFrom-Json-WithEmptyArray($DatasourceInput));
             }
-            $body = ConvertTo-Json -InputObject $body
+            $body = ConvertTo-Json -InputObject $body -Depth 100
       
             $uri = ($script:PortalBaseUrl +"api/v1/datasource")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -270,10 +272,11 @@ function Invoke-HelloIDDelegatedForm {
     param(
         [parameter(Mandatory)][String]$DelegatedFormName,
         [parameter(Mandatory)][String]$DynamicFormGuid,
-        [parameter()][String][AllowEmptyString()]$AccessGroups,
+        [parameter()][Array][AllowEmptyString()]$AccessGroups,
         [parameter()][String][AllowEmptyString()]$Categories,
         [parameter(Mandatory)][String]$UseFaIcon,
         [parameter()][String][AllowEmptyString()]$FaIcon,
+        [parameter()][String][AllowEmptyString()]$task,
         [parameter(Mandatory)][Ref]$returnObject
     )
     $delegatedFormCreated = $false
@@ -293,11 +296,16 @@ function Invoke-HelloIDDelegatedForm {
                 name            = $DelegatedFormName;
                 dynamicFormGUID = $DynamicFormGuid;
                 isEnabled       = "True";
-                accessGroups    = (ConvertFrom-Json-WithEmptyArray($AccessGroups));
                 useFaIcon       = $UseFaIcon;
                 faIcon          = $FaIcon;
-            }    
-            $body = ConvertTo-Json -InputObject $body
+                task            = ConvertFrom-Json -inputObject $task;
+            }
+            if(-not[String]::IsNullOrEmpty($AccessGroups)) { 
+                $body += @{
+                    accessGroups    = (ConvertFrom-Json-WithEmptyArray($AccessGroups));
+                }
+            }
+            $body = ConvertTo-Json -InputObject $body -Depth 100
     
             $uri = ($script:PortalBaseUrl +"api/v1/delegatedforms")
             $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -322,6 +330,8 @@ function Invoke-HelloIDDelegatedForm {
     $returnObject.value.guid = $delegatedFormGuid
     $returnObject.value.created = $delegatedFormCreated
 }
+
+
 <# Begin: HelloID Global Variables #>
 foreach ($item in $globalHelloIDVariables) {
 	Invoke-HelloIDGlobalVariable -Name $item.name -Value $item.value -Secret $item.secret 
@@ -499,19 +509,23 @@ Invoke-HelloIDDynamicForm -FormName $dynamicFormName -FormSchema $tmpSchema  -re
 
 <# Begin: Delegated Form Access Groups and Categories #>
 $delegatedFormAccessGroupGuids = @()
-foreach($group in $delegatedFormAccessGroupNames) {
-    try {
-        $uri = ($script:PortalBaseUrl +"api/v1/groups/$group")
-        $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
-        $delegatedFormAccessGroupGuid = $response.groupGuid
-        $delegatedFormAccessGroupGuids += $delegatedFormAccessGroupGuid
-        
-        Write-Information "HelloID (access)group '$group' successfully found$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormAccessGroupGuid })"
-    } catch {
-        Write-Error "HelloID (access)group '$group', message: $_"
+if(-not[String]::IsNullOrEmpty($delegatedFormAccessGroupNames)){
+    foreach($group in $delegatedFormAccessGroupNames) {
+        try {
+            $uri = ($script:PortalBaseUrl +"api/v1/groups/$group")
+            $response = Invoke-RestMethod -Method Get -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false
+            $delegatedFormAccessGroupGuid = $response.groupGuid
+            $delegatedFormAccessGroupGuids += $delegatedFormAccessGroupGuid
+            
+            Write-Information "HelloID (access)group '$group' successfully found$(if ($script:debugLogging -eq $true) { ": " + $delegatedFormAccessGroupGuid })"
+        } catch {
+            Write-Error "HelloID (access)group '$group', message: $_"
+        }
+    }
+    if($null -ne $delegatedFormAccessGroupGuids){
+        $delegatedFormAccessGroupGuids = ($delegatedFormAccessGroupGuids | Select-Object -Unique | ConvertTo-Json -Depth 100 -Compress)
     }
 }
-$delegatedFormAccessGroupGuids = ($delegatedFormAccessGroupGuids | Select-Object -Unique | ConvertTo-Json -Compress)
 
 $delegatedFormCategoryGuids = @()
 foreach($category in $delegatedFormCategories) {
@@ -527,7 +541,7 @@ foreach($category in $delegatedFormCategories) {
         $body = @{
             name = @{"en" = $category};
         }
-        $body = ConvertTo-Json -InputObject $body
+        $body = ConvertTo-Json -InputObject $body -Depth 100
 
         $uri = ($script:PortalBaseUrl +"api/v1/delegatedformcategories")
         $response = Invoke-RestMethod -Method Post -Uri $uri -Headers $script:headers -ContentType "application/json" -Verbose:$false -Body $body
@@ -537,7 +551,7 @@ foreach($category in $delegatedFormCategories) {
         Write-Information "HelloID Delegated Form category '$category' successfully created$(if ($script:debugLogging -eq $true) { ": " + $tmpGuid })"
     }
 }
-$delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategoryGuids -Compress)
+$delegatedFormCategoryGuids = (ConvertTo-Json -InputObject $delegatedFormCategoryGuids -Depth 100 -Compress)
 <# End: Delegated Form Access Groups and Categories #>
 
 <# Begin: Delegated Form #>
@@ -545,37 +559,26 @@ $delegatedFormRef = [PSCustomObject]@{guid = $null; created = $null}
 $delegatedFormName = @'
 Azure AD Group - Update details
 '@
-Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -returnObject ([Ref]$delegatedFormRef) 
+$tmpTask = $null 
+
+Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
 <# End: Delegated Form #>
 
-<# Begin: Delegated Form Task #>
+<# Begin: Delegated Form Automation Task #>
 if($delegatedFormRef.created -eq $true) { 
 	$tmpScript = @'
-#$groupTypes = @("")
-
-#$allowExternalSenders = $false
-#$autoSubscribeNewMembers = $false
-
-#$visibility = "Private"
-
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+
+#Mapping variables from form
+$description = $form.description;
+$displayName = $form.displayName;
+$groupId = $form.gridGroups.id;
 
 #Change mapping here
 $group = [PSCustomObject]@{
     description = $description;
     displayName = $displayName;
-
-    #groupTypes = @($groupTypes);
-
-    mailEnabled = $mailEnabled;
-    mailNickname = $mailNickName;
-    # allowExternalSenders = $allowExternalSenders; - Not supported with Application permissions
-    # autoSubscribeNewMembers = $autoSubscribeNewMembers; - Not supported with Application permissions
-
-    securityEnabled = $securityEnabled;
-
-    #visibility = $visibility;
 }
 
 # Filter out empty properties
@@ -591,7 +594,7 @@ foreach($property in $groupTemp.PSObject.Properties){
 $group = [PSCustomObject]$group
 
 try{
-    Hid-Write-Status -Message "Generating Microsoft Graph API Access Token user.." -Event Information
+    Write-Information "Generating Microsoft Graph API Access Token user.."
 
     $baseUri = "https://login.microsoftonline.com/"
     $authUri = $baseUri + "$AADTenantID/oauth2/token"
@@ -606,7 +609,7 @@ try{
     $Response = Invoke-RestMethod -Method POST -Uri $authUri -Body $body -ContentType 'application/x-www-form-urlencoded'
     $accessToken = $Response.access_token;
          
-    Hid-Write-Status -Message "Searching for AzureAD group ID=$groupId" -Event Information
+    Write-Information "Searching for AzureAD group ID=$groupId"
 
     #Add the authorization header to the request
     $authorization = @{
@@ -618,9 +621,9 @@ try{
     $baseSearchUri = "https://graph.microsoft.com/"
     $searchUri = $baseSearchUri + "v1.0/groups/$groupId"
     $azureADGroup = Invoke-RestMethod -Uri $searchUri -Method Get -Headers $authorization -Verbose:$false
-    HID-Write-Status -Message "Finished searching AzureAD group [$groupId]" -Event Information
 
-    Hid-Write-Status -Message "Updating AzureAD group [$($azureADGroup.displayName)].." -Event Information
+    Write-Information "Finished searching AzureAD group [$groupId]"
+    Write-Information "Updating AzureAD group [$($azureADGroup.displayName)].."
 
     $baseUpdateUri = "https://graph.microsoft.com/"
     $updateUri = $baseUpdateUri + "v1.0/groups/$($azureADGroup.id)"
@@ -628,24 +631,42 @@ try{
  
     $response = Invoke-RestMethod -Uri $updateUri -Method PATCH -Headers $authorization -Body $body -Verbose:$false
 
-    Hid-Write-Status -Message "AzureAD group [$($azureADGroup.displayName)] updated successfully" -Event Success
-    HID-Write-Summary -Message "AzureAD group [$($azureADGroup.displayName)] updated successfully" -Event Success
+    Write-Information "AzureAD group [$($azureADGroup.displayName)] updated successfully"
+
+    $Log = @{
+        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
+        System            = "AzureActiveDirectory" # optional (free format text) 
+        Message           = "Updated group with id $groupId" # required (free format text) 
+        IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
+    }
+    #send result back  
+    Write-Information -Tags "Audit" -MessageData $log
+
 }catch{
-    HID-Write-Status -Message "Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_" -Event Error
-    HID-Write-Summary -Message "Error updating AzureAD group [$($azureADGroup.displayName)]" -Event Failed
+    Write-Error "Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_" 
+    Write-Information "Error updating AzureAD group [$($azureADGroup.displayName)]"
+
+    $Log = @{
+        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
+        System            = "AzureActiveDirectory" # optional (free format text) 
+        Message           = "Failed to group with id $groupId" # required (free format text) 
+        IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
+    }
+    #send result back  
+    Write-Information -Tags "Audit" -MessageData $log
 }
 '@; 
 
 	$tmpVariables = @'
-[{"name":"description","value":"{{form.description}}","secret":false,"typeConstraint":"string"},{"name":"displayName","value":"{{form.displayName}}","secret":false,"typeConstraint":"string"},{"name":"groupId","value":"{{form.gridGroups.id}}","secret":false,"typeConstraint":"string"},{"name":"groupTypes","value":null,"secret":false,"typeConstraint":"string"},{"name":"mailEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"mailNickName","value":null,"secret":false,"typeConstraint":"string"},{"name":"securityEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"visibility","value":null,"secret":false,"typeConstraint":"string"}]
+[{"name":"visibility","value":null,"secret":false,"typeConstraint":"string"},{"name":"groupId","value":"{{form.gridGroups.id}}","secret":false,"typeConstraint":"string"},{"name":"mailEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"mailNickName","value":null,"secret":false,"typeConstraint":"string"},{"name":"securityEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"groupTypes","value":null,"secret":false,"typeConstraint":"string"},{"name":"displayName","value":"{{form.displayName}}","secret":false,"typeConstraint":"string"},{"name":"description","value":"{{form.description}}","secret":false,"typeConstraint":"string"}]
 '@ 
 
-	$delegatedFormTaskGuid = [PSCustomObject]@{} 
-$delegatedFormTaskName = @'
+	$delegatedFormAutomationTaskGUID = [PSCustomObject]@{} 
+	$delegatedFormAutomationTaskName = @'
 azure-ad-group-update-details
 '@
-	Invoke-HelloIDAutomationTask -TaskName $delegatedFormTaskName -UseTemplate "False" -AutomationContainer "8" -Variables $tmpVariables -PowershellScript $tmpScript -ObjectGuid $delegatedFormRef.guid -ForceCreateTask $true -returnObject ([Ref]$delegatedFormTaskGuid) 
+	Invoke-HelloIDAutomationTask -TaskName $delegatedFormAutomationTaskName -UseTemplate "False" -AutomationContainer "8" -Variables $tmpVariables -PowershellScript $tmpScript -ObjectGuid $delegatedFormRef.guid -ForceCreateTask $true -returnObject ([Ref]$delegatedFormAutomationTaskGUID) 
 } else {
-	Write-Warning "Delegated form '$delegatedFormName' already exists. Nothing to do with the Delegated Form task..." 
+	Write-Warning "Delegated form '$delegatedFormName' already exists. Nothing to do with the Delegated Form automation task..." 
 }
-<# End: Delegated Form Task #>
+<# End: Delegated Form Automation Task #>

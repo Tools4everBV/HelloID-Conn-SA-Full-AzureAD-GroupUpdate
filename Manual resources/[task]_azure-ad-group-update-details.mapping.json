@@ -1,19 +1,11 @@
 [
     {
-        "name":  "description",
-        "value":  "{{form.description}}"
-    },
-    {
-        "name":  "displayName",
-        "value":  "{{form.displayName}}"
+        "name":  "visibility",
+        "value":  null
     },
     {
         "name":  "groupId",
         "value":  "{{form.gridGroups.id}}"
-    },
-    {
-        "name":  "groupTypes",
-        "value":  null
     },
     {
         "name":  "mailEnabled",
@@ -28,7 +20,15 @@
         "value":  null
     },
     {
-        "name":  "visibility",
+        "name":  "groupTypes",
         "value":  null
+    },
+    {
+        "name":  "displayName",
+        "value":  "{{form.displayName}}"
+    },
+    {
+        "name":  "description",
+        "value":  "{{form.description}}"
     }
 ]
