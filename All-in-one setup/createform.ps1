@@ -6,7 +6,7 @@
 $portalUrl = "https://CUSTOMER.helloid.com"
 $apiKey = "API_KEY"
 $apiSecret = "API_SECRET"
-$delegatedFormAccessGroupNames = @("") #Only unique names are supported. Groups must exist!
+$delegatedFormAccessGroupNames = @("Users") #Only unique names are supported. Groups must exist!
 $delegatedFormCategories = @("Azure Active Directory","Group Management") #Only unique names are supported. Categories will be created if not exists
 $script:debugLogging = $false #Default value: $false. If $true, the HelloID resource GUIDs will be shown in the logging
 $script:duplicateForm = $false #Default value: $false. If $true, the HelloID resource names will be changed to import a duplicate Form
@@ -20,27 +20,21 @@ $globalHelloIDVariables = [System.Collections.Generic.List[object]]@();
 $tmpName = @'
 AADAppId
 '@ 
-$tmpValue = @'
-430009f2-92ac-4efdsa-a877-57e2d5ad01a0jd73
-'@ 
+$tmpValue = ""
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
-#Global variable #2 >> AADtenantID
-$tmpName = @'
-AADtenantID
-'@ 
-$tmpValue = @'
-fdasdf4-5b86-4336-aaae-00550f991cfasddf
-'@ 
-$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
-
-#Global variable #3 >> AADAppSecret
+#Global variable #2 >> AADAppSecret
 $tmpName = @'
 AADAppSecret
 '@ 
-$tmpValue = @'
-hRL8Q~Q1bsHzQVaKwulNq5fIh~RGvM.xmgxPZcCs
+$tmpValue = "" 
+$globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
+
+#Global variable #3 >> AADtenantID
+$tmpName = @'
+AADtenantID
 '@ 
+$tmpValue = ""
 $globalHelloIDVariables.Add([PSCustomObject]@{name = $tmpName; value = $tmpValue; secret = "False"});
 
 
@@ -559,114 +553,10 @@ $delegatedFormRef = [PSCustomObject]@{guid = $null; created = $null}
 $delegatedFormName = @'
 Azure AD Group - Update details
 '@
-$tmpTask = $null 
+$tmpTask = @'
+{"name":"Azure AD Group - Update details","script":"# Set TLS to accept TLS, TLS 1.1 and TLS 1.2\r\n[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12\r\n\r\n#Mapping variables from form\r\n$description = $form.description;\r\n$displayName = $form.displayName;\r\n$groupId = $form.gridGroups.id;\r\n\r\n#Change mapping here\r\n$group = [PSCustomObject]@{\r\n    description = $description;\r\n    displayName = $displayName;\r\n}\r\n\r\n# Filter out empty properties\r\n$groupTemp = $group\r\n\r\n$group = @{}\r\nforeach($property in $groupTemp.PSObject.Properties){\r\n    if(![string]::IsNullOrEmpty($property.Value)){\r\n        $null = $group.Add($property.Name, $property.Value)\r\n    }\r\n}\r\n\r\n$group = [PSCustomObject]$group\r\n\r\ntry{\r\n    Write-Information \"Generating Microsoft Graph API Access Token user..\"\r\n\r\n    $baseUri = \"https://login.microsoftonline.com/\"\r\n    $authUri = $baseUri + \"$AADTenantID/oauth2/token\"\r\n\r\n    $body = @{\r\n        grant_type      = \"client_credentials\"\r\n        client_id       = \"$AADAppId\"\r\n        client_secret   = \"$AADAppSecret\"\r\n        resource        = \"https://graph.microsoft.com\"\r\n    }\r\n \r\n    $Response = Invoke-RestMethod -Method POST -Uri $authUri -Body $body -ContentType \u0027application/x-www-form-urlencoded\u0027\r\n    $accessToken = $Response.access_token;\r\n         \r\n    Write-Information \"Searching for AzureAD group ID=$groupId\"\r\n\r\n    #Add the authorization header to the request\r\n    $authorization = @{\r\n        Authorization = \"Bearer $accesstoken\";\r\n        \u0027Content-Type\u0027 = \"application/json\";\r\n        Accept = \"application/json\";\r\n    }\r\n\r\n    $baseSearchUri = \"https://graph.microsoft.com/\"\r\n    $searchUri = $baseSearchUri + \"v1.0/groups/$groupId\"\r\n    $azureADGroup = Invoke-RestMethod -Uri $searchUri -Method Get -Headers $authorization -Verbose:$false\r\n\r\n    Write-Information \"Finished searching AzureAD group [$groupId]\"\r\n    Write-Information \"Updating AzureAD group [$($azureADGroup.displayName)]..\"\r\n\r\n    $baseUpdateUri = \"https://graph.microsoft.com/\"\r\n    $updateUri = $baseUpdateUri + \"v1.0/groups/$($azureADGroup.id)\"\r\n    $body = $group | ConvertTo-Json -Depth 10\r\n \r\n    $response = Invoke-RestMethod -Uri $updateUri -Method PATCH -Headers $authorization -Body $body -Verbose:$false\r\n\r\n    Write-Information \"AzureAD group [$($azureADGroup.displayName)] updated successfully\"\r\n    \r\n    $Log = @{\r\n        Action            = \"UpdateResource\" # optional. ENUM (undefined = default) \r\n        System            = \"AzureActiveDirectory\" # optional (free format text) \r\n        Message           = \"Updated group with id $groupId\" # required (free format text) \r\n        IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n        TargetDisplayName = $($azureADGroup.displayName) # optional (free format text) \r\n        TargetIdentifier  = $groupId # optional (free format text) \r\n    }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log\r\n\r\n}catch{\r\n    Write-Error \"Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_\"     \r\n\r\n    $Log = @{\r\n        Action            = \"UpdateResource\" # optional. ENUM (undefined = default) \r\n        System            = \"AzureActiveDirectory\" # optional (free format text) \r\n        Message           = \"Updated group with id $groupId\" # required (free format text) \r\n        IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) \r\n        TargetDisplayName = $($azureADGroup.displayName) # optional (free format text) \r\n        TargetIdentifier  = $groupId # optional (free format text) \r\n    }\r\n    #send result back  \r\n    Write-Information -Tags \"Audit\" -MessageData $log\r\n}","runInCloud":false}
+'@ 
 
 Invoke-HelloIDDelegatedForm -DelegatedFormName $delegatedFormName -DynamicFormGuid $dynamicFormGuid -AccessGroups $delegatedFormAccessGroupGuids -Categories $delegatedFormCategoryGuids -UseFaIcon "True" -FaIcon "fa fa-users" -task $tmpTask -returnObject ([Ref]$delegatedFormRef) 
 <# End: Delegated Form #>
 
-<# Begin: Delegated Form Automation Task #>
-if($delegatedFormRef.created -eq $true) { 
-	$tmpScript = @'
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
-
-#Mapping variables from form
-$description = $form.description;
-$displayName = $form.displayName;
-$groupId = $form.gridGroups.id;
-
-#Change mapping here
-$group = [PSCustomObject]@{
-    description = $description;
-    displayName = $displayName;
-}
-
-# Filter out empty properties
-$groupTemp = $group
-
-$group = @{}
-foreach($property in $groupTemp.PSObject.Properties){
-    if(![string]::IsNullOrEmpty($property.Value)){
-        $null = $group.Add($property.Name, $property.Value)
-    }
-}
-
-$group = [PSCustomObject]$group
-
-try{
-    Write-Information "Generating Microsoft Graph API Access Token user.."
-
-    $baseUri = "https://login.microsoftonline.com/"
-    $authUri = $baseUri + "$AADTenantID/oauth2/token"
-
-    $body = @{
-        grant_type      = "client_credentials"
-        client_id       = "$AADAppId"
-        client_secret   = "$AADAppSecret"
-        resource        = "https://graph.microsoft.com"
-    }
- 
-    $Response = Invoke-RestMethod -Method POST -Uri $authUri -Body $body -ContentType 'application/x-www-form-urlencoded'
-    $accessToken = $Response.access_token;
-         
-    Write-Information "Searching for AzureAD group ID=$groupId"
-
-    #Add the authorization header to the request
-    $authorization = @{
-        Authorization = "Bearer $accesstoken";
-        'Content-Type' = "application/json";
-        Accept = "application/json";
-    }
-
-    $baseSearchUri = "https://graph.microsoft.com/"
-    $searchUri = $baseSearchUri + "v1.0/groups/$groupId"
-    $azureADGroup = Invoke-RestMethod -Uri $searchUri -Method Get -Headers $authorization -Verbose:$false
-
-    Write-Information "Finished searching AzureAD group [$groupId]"
-    Write-Information "Updating AzureAD group [$($azureADGroup.displayName)].."
-
-    $baseUpdateUri = "https://graph.microsoft.com/"
-    $updateUri = $baseUpdateUri + "v1.0/groups/$($azureADGroup.id)"
-    $body = $group | ConvertTo-Json -Depth 10
- 
-    $response = Invoke-RestMethod -Uri $updateUri -Method PATCH -Headers $authorization -Body $body -Verbose:$false
-
-    Write-Information "AzureAD group [$($azureADGroup.displayName)] updated successfully"
-
-    $Log = @{
-        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
-        System            = "AzureActiveDirectory" # optional (free format text) 
-        Message           = "Updated group with id $groupId" # required (free format text) 
-        IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
-    }
-    #send result back  
-    Write-Information -Tags "Audit" -MessageData $log
-
-}catch{
-    Write-Error "Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_" 
-    Write-Information "Error updating AzureAD group [$($azureADGroup.displayName)]"
-
-    $Log = @{
-        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
-        System            = "AzureActiveDirectory" # optional (free format text) 
-        Message           = "Failed to group with id $groupId" # required (free format text) 
-        IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
-    }
-    #send result back  
-    Write-Information -Tags "Audit" -MessageData $log
-}
-'@; 
-
-	$tmpVariables = @'
-[{"name":"visibility","value":null,"secret":false,"typeConstraint":"string"},{"name":"groupId","value":"{{form.gridGroups.id}}","secret":false,"typeConstraint":"string"},{"name":"mailEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"mailNickName","value":null,"secret":false,"typeConstraint":"string"},{"name":"securityEnabled","value":null,"secret":false,"typeConstraint":"string"},{"name":"groupTypes","value":null,"secret":false,"typeConstraint":"string"},{"name":"displayName","value":"{{form.displayName}}","secret":false,"typeConstraint":"string"},{"name":"description","value":"{{form.description}}","secret":false,"typeConstraint":"string"}]
-'@ 
-
-	$delegatedFormAutomationTaskGUID = [PSCustomObject]@{} 
-	$delegatedFormAutomationTaskName = @'
-azure-ad-group-update-details
-'@
-	Invoke-HelloIDAutomationTask -TaskName $delegatedFormAutomationTaskName -UseTemplate "False" -AutomationContainer "8" -Variables $tmpVariables -PowershellScript $tmpScript -ObjectGuid $delegatedFormRef.guid -ForceCreateTask $true -returnObject ([Ref]$delegatedFormAutomationTaskGUID) 
-} else {
-	Write-Warning "Delegated form '$delegatedFormName' already exists. Nothing to do with the Delegated Form automation task..." 
-}
-<# End: Delegated Form Automation Task #>

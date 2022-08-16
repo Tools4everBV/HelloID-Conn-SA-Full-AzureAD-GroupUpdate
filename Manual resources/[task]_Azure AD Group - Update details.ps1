@@ -63,25 +63,28 @@ try{
     $response = Invoke-RestMethod -Uri $updateUri -Method PATCH -Headers $authorization -Body $body -Verbose:$false
 
     Write-Information "AzureAD group [$($azureADGroup.displayName)] updated successfully"
-
+    
     $Log = @{
-        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
+        Action            = "UpdateResource" # optional. ENUM (undefined = default) 
         System            = "AzureActiveDirectory" # optional (free format text) 
         Message           = "Updated group with id $groupId" # required (free format text) 
         IsError           = $false # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
+        TargetDisplayName = $($azureADGroup.displayName) # optional (free format text) 
+        TargetIdentifier  = $groupId # optional (free format text) 
     }
     #send result back  
     Write-Information -Tags "Audit" -MessageData $log
 
 }catch{
-    Write-Error "Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_" 
-    Write-Information "Error updating AzureAD group [$($azureADGroup.displayName)]"
+    Write-Error "Error updating AzureAD group [$($azureADGroup.displayName)]. Error: $_"     
 
     $Log = @{
-        Action            = "UpdateGroup" # optional. ENUM (undefined = default) 
+        Action            = "UpdateResource" # optional. ENUM (undefined = default) 
         System            = "AzureActiveDirectory" # optional (free format text) 
-        Message           = "Failed to group with id $groupId" # required (free format text) 
+        Message           = "Updated group with id $groupId" # required (free format text) 
         IsError           = $true # optional. Elastic reporting purposes only. (default = $false. $true = Executed action returned an error) 
+        TargetDisplayName = $($azureADGroup.displayName) # optional (free format text) 
+        TargetIdentifier  = $groupId # optional (free format text) 
     }
     #send result back  
     Write-Information -Tags "Audit" -MessageData $log
